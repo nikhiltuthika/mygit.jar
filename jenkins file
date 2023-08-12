@@ -1,0 +1,46 @@
+pipeline {
+    agent any
+    tools {
+        maven "Maven"
+    }
+    stages {
+        stage('mvn build') {
+            steps {
+                checkout scmGit(branches: [[name: '*/main']], extensions: [], userRemoteConfigs: [[url: 'https://github.com/nikhiltuthika/sample.git']])
+                sh "mvn clean install"
+            }
+        }
+        stage('docker') {
+            steps {
+                script {
+                    sshagent(['dockerid']) {
+                        sh "scp -o StrictHostKeyChecking=no /var/lib/jenkins/workspace/git/target/*.jar ec2-user@13.233.90.232:/home/ec2-user/git/"
+                        sh "ssh -o StrictHostKeyChecking=no ec2-user@13.233.90.232 'docker build -t mygit /home/ec2-user/git/'"
+                        sh "ssh -o StrictHostKeyChecking=no ec2-user@13.233.90.232 'docker-compose -f git.yml up -d'"
+                    }
+                }
+            }
+        }
+        stage("tag image") {
+            steps {
+                script {
+                    sshagent(['dockerid']) {
+                        sh "ssh -o StrictHostKeyChecking=no ec2-user@13.233.90.232 'docker tag mygit nikhiltuthika/mygit-1'"
+                    }
+                }
+            }
+        }
+        stage("push image to dockerhub") {
+            steps {
+                script {
+                    withCredentials([string(credentialsId: 'dockerhub', variable: 'dockerhub')]) {
+                        sshagent(['dockerid']) {
+                            sh "ssh -o StrictHostKeyChecking=no ec2-user@13.233.90.232 'docker login -u nikhiltuthika -p $dockerhub'"
+                            sh "ssh -o StrictHostKeyChecking=no ec2-user@13.233.90.232 'docker push nikhiltuthika/mygit-1'"
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
