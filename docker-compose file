@@ -1,0 +1,7 @@
+version: "3"
+services: 
+  hello:
+    image: mygit:latest
+    ports:
+      - "8011:8080"
+    restart: always
