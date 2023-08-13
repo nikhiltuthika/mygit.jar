@@ -3,20 +3,28 @@ pipeline {
     tools {
         maven "Maven"
     }
+    parameters {
+        string(
+            defaultValue: '65.2.29.242',
+            description: 'docker IP address',
+            name: 'docker-ip'
+        )
+    }
     stages {
-        stage('mvn build') {
+        stage('git clone and mvn build') {
             steps {
                 checkout scmGit(branches: [[name: '*/main']], extensions: [], userRemoteConfigs: [[url: 'https://github.com/nikhiltuthika/sample.git']])
                 sh "mvn clean install"
             }
         }
-        stage('docker') {
+        stage('docker remove old image,build image and run container') {
             steps {
                 script {
                     sshagent(['dockerid']) {
-                        sh "scp -o StrictHostKeyChecking=no /var/lib/jenkins/workspace/git/target/*.jar ec2-user@13.233.90.232:/home/ec2-user/git/"
-                        sh "ssh -o StrictHostKeyChecking=no ec2-user@13.233.90.232 'docker build -t mygit /home/ec2-user/git/'"
-                        sh "ssh -o StrictHostKeyChecking=no ec2-user@13.233.90.232 'docker-compose -f git.yml up -d'"
+                        sh "scp -o StrictHostKeyChecking=no /var/lib/jenkins/workspace/git/target/*.jar ec2-user@${params['docker-ip']}:/home/ec2-user/git/"
+                        sh "ssh -o StrictHostKeyChecking=no ec2-user@${params['docker-ip']} 'docker rmi mygit'"
+                        sh "ssh -o StrictHostKeyChecking=no ec2-user@${params['docker-ip']} 'docker build -t mygit /home/ec2-user/git/'"
+                        sh "ssh -o StrictHostKeyChecking=no ec2-user@${params['docker-ip']} 'docker-compose -f git.yml up -d'"
                     }
                 }
             }
@@ -25,22 +33,24 @@ pipeline {
             steps {
                 script {
                     sshagent(['dockerid']) {
-                        sh "ssh -o StrictHostKeyChecking=no ec2-user@13.233.90.232 'docker tag mygit nikhiltuthika/mygit-1'"
+                        sh "ssh -o StrictHostKeyChecking=no ec2-user@${params['docker-ip']} 'docker tag mygit nikhiltuthika/mygit-1'"
                     }
-                }
-            }
-        }
-        stage("push image to dockerhub") {
-            steps {
-                script {
                     withCredentials([string(credentialsId: 'dockerhub', variable: 'dockerhub')]) {
                         sshagent(['dockerid']) {
-                            sh "ssh -o StrictHostKeyChecking=no ec2-user@13.233.90.232 'docker login -u nikhiltuthika -p $dockerhub'"
-                            sh "ssh -o StrictHostKeyChecking=no ec2-user@13.233.90.232 'docker push nikhiltuthika/mygit-1'"
+                            sh "ssh -o StrictHostKeyChecking=no ec2-user@${params['docker-ip']} 'docker login -u nikhiltuthika -p $dockerhub'"
+                            sh "ssh -o StrictHostKeyChecking=no ec2-user@${params['docker-ip']} 'docker push nikhiltuthika/mygit-1'"
                         }
                     }
                 }
             }
+        }
+    }
+    post {
+        failure {
+            echo "FAILURE"
+        }
+        success {
+            echo "SUCCESS"
         }
     }
 }
