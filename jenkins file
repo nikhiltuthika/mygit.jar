@@ -10,6 +10,9 @@ pipeline {
             name: 'docker-ip'
         )
     }
+    environment {
+        docker_ssh = "ssh -o StrictHostKeyChecking=no ec2-user@${params['docker-ip']}"
+    }
     stages {
         stage('git clone and mvn build') {
             steps {
@@ -22,9 +25,9 @@ pipeline {
                 script {
                     sshagent(['dockerid']) {
                         sh "scp -o StrictHostKeyChecking=no /var/lib/jenkins/workspace/git/target/*.jar ec2-user@${params['docker-ip']}:/home/ec2-user/git/"
-                        sh "ssh -o StrictHostKeyChecking=no ec2-user@${params['docker-ip']} 'docker rmi mygit'"
-                        sh "ssh -o StrictHostKeyChecking=no ec2-user@${params['docker-ip']} 'docker build -t mygit /home/ec2-user/git/'"
-                        sh "ssh -o StrictHostKeyChecking=no ec2-user@${params['docker-ip']} 'docker-compose -f git.yml up -d'"
+                        sh "${env.docker_ssh} 'docker rmi mygit'"
+                        sh "${env.docker_ssh} 'docker build -t mygit /home/ec2-user/git/'"
+                        sh "${env.docker_ssh} 'docker-compose -f git.yml up -d'"
                     }
                 }
             }
@@ -33,12 +36,12 @@ pipeline {
             steps {
                 script {
                     sshagent(['dockerid']) {
-                        sh "ssh -o StrictHostKeyChecking=no ec2-user@${params['docker-ip']} 'docker tag mygit nikhiltuthika/mygit-1'"
+                        sh "${env.docker_ssh} 'docker tag mygit nikhiltuthika/mygit-1'"
                     }
                     withCredentials([string(credentialsId: 'dockerhub', variable: 'dockerhub')]) {
                         sshagent(['dockerid']) {
-                            sh "ssh -o StrictHostKeyChecking=no ec2-user@${params['docker-ip']} 'docker login -u nikhiltuthika -p $dockerhub'"
-                            sh "ssh -o StrictHostKeyChecking=no ec2-user@${params['docker-ip']} 'docker push nikhiltuthika/mygit-1'"
+                            sh "${env.docker_ssh} 'docker login -u nikhiltuthika -p $dockerhub'"
+                            sh "${env.docker_ssh} 'docker push nikhiltuthika/mygit-1'"
                         }
                     }
                 }
