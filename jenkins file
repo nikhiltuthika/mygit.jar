@@ -5,7 +5,7 @@ pipeline {
     }
     parameters {
         string(
-            defaultValue: '65.2.29.242',
+            defaultValue: '3.110.133.221',
             description: 'docker IP address',
             name: 'docker-ip'
         )
@@ -50,10 +50,23 @@ pipeline {
     }
     post {
         failure {
-            echo "FAILURE"
+           script {
+                slackSend(
+                    color: '#FF0000', // Red color
+                    message: "Build failed! :cry:",
+                    channel: '#testing',
+                    tokenCredentialId: 'slack-testing'
+                )
+            }
         }
         success {
-            echo "SUCCESS"
-        }
+            script {
+                slackSend(
+                    color: '#00FF00', // Green color
+                    message: "Build successful! :tada:",
+                    channel: '#testing', // Specify your Slack channel
+                    tokenCredentialId: 'slack-testing' // Jenkins credentials containing your Slack token
+                )
+        }   }
     }
 }
